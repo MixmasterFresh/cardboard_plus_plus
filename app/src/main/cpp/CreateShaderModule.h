@@ -18,7 +18,7 @@
 #ifndef TUTORIAL06_TEXTURE_CREATESHADERMODULE_H
 #define TUTORIAL06_TEXTURE_CREATESHADERMODULE_H
 
-#include <vulkan_wrapper.h>
+#include "VulkanAndroid.hpp"
 #include <android_native_app_glue.h>
 /*
  * buildShaderFromFile()

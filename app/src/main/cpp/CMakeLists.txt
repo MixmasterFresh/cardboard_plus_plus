@@ -12,22 +12,37 @@ get_filename_component(REPO_ROOT_DIR
    ${CMAKE_SOURCE_DIR}/../../../..  ABSOLUTE)
 set(COMMON_DIR ${REPO_ROOT_DIR}/common)
 set(THIRD_PARTY_DIR ${REPO_ROOT_DIR}/third_party)
+set(SHADER_DIR ${SRC_DIR}/../assets/shaders)
+set(GLSLANG_VALIDATOR C:/VulkanSDK/1.0.57.0/Bin32/glslangvalidator.exe)
+set(SFILE tri)
+
+add_custom_command(OUTPUT ${SHADER_DIR}/${SFILE}.frag.spv
+	COMMAND ${GLSLANG_VALIDATOR} -s -V ${SHADER_DIR}/${SFILE}.frag -o ${SHADER_DIR}/${SFILE}.frag.spv
+	DEPENDS ${SHADER_DIR}/${SFILE}.frag ${GLSLANG_VALIDATOR}
+)
+
+add_custom_command(OUTPUT ${SHADER_DIR}/${SFILE}.vert.spv
+    COMMAND ${GLSLANG_VALIDATOR} -s -V ${SHADER_DIR}/${SFILE}.vert -o ${SHADER_DIR}/${SFILE}.vert.spv
+    DEPENDS ${SHADER_DIR}/${SFILE}.vert ${GLSLANG_VALIDATOR}
+)
+
 
 add_library(vktuts SHARED
-   ${SRC_DIR}/Device.cpp
-   ${SRC_DIR}/VulkanMain.cpp
-   ${SRC_DIR}/AndroidMain.cpp
+   ${SRC_DIR}/VulkanAndroid.cpp
    ${SRC_DIR}/CreateShaderModule.cpp
-   ${COMMON_DIR}/vulkan_wrapper/vulkan_wrapper.cpp)
+   ${SRC_DIR}/CardboardRenderer.cpp
+   ${SRC_DIR}/AndroidMain.cpp
+   ${SHADER_DIR}/tri.vert.spv
+   ${SHADER_DIR}/tri.frag.spv
+   )
 
 target_include_directories(vktuts PRIVATE
-   ${COMMON_DIR}/vulkan_wrapper
    ${COMMON_DIR}/src
    ${THIRD_PARTY_DIR}
    ${ANDROID_NDK}/sources/android/native_app_glue)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-   -std=c++11 -Werror -Wno-unused-variable -DVK_USE_PLATFORM_ANDROID_KHR")
+   -std=c++11 -Werror -Wno-unused-variable -DGLM_LANG_STL11_FORCED")
 
 if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
    set(CMAKE_CXX_FLAGS} "${CMAKE_CXX_FLAGS} \
