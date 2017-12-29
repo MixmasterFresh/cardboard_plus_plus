@@ -11,8 +11,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
+#define TINYOBJ_LOADER_OPT_IMPLEMENTATION
+#include <tinyobj_loader_opt.h>
 
 #include <stdexcept>
 #include <algorithm>
@@ -76,12 +76,12 @@ void CardboardRenderer::run() {
 }
 
 void CardboardRenderer::initVulkan() {
+    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Initializing...");
     createInstance();
     setupDebugCallback();
     createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 1");
 
     vks::android::loadVulkanDeviceFunctions(device);
 
@@ -96,21 +96,16 @@ void CardboardRenderer::initVulkan() {
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 2");
-
     loadModel();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 4");
     createVertexBuffer();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 5");
     createIndexBuffer();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 6");
     createUniformBuffer();
     createDescriptorPool();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 7");
     createDescriptorSet();
     createCommandBuffers();
     createSemaphores();
-    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Checkpoint 3");
+
+    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Initialized.");
 
     ready = true;
 }
@@ -164,6 +159,7 @@ void CardboardRenderer::cleanupSwapChain() {
 
 void CardboardRenderer::cleanup() {
     ready = false;
+    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Cleaning up...");
     vkDeviceWaitIdle(device);
     cleanupSwapChain();
 
@@ -195,6 +191,7 @@ void CardboardRenderer::cleanup() {
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
 
+    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Cleaned up.");
     //TODO: Potentially clean up android window(if necessary)
 }
 
@@ -370,7 +367,7 @@ void CardboardRenderer::createSwapChain() {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+    createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
@@ -895,9 +892,9 @@ void CardboardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32
 }
 
 void CardboardRenderer::loadModel() {
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
+    tinyobj_opt::attrib_t attrib;
+    std::vector<tinyobj_opt::shape_t> shapes;
+    std::vector<tinyobj_opt::material_t> materials;
     std::string err;
 
     AAsset* file = AAssetManager_open(app->activity->assetManager, MODEL_PATH.c_str(), AASSET_MODE_BUFFER);
@@ -906,14 +903,16 @@ void CardboardRenderer::loadModel() {
     AAsset_read(file, fileContent, fileLength);
 
     __android_log_print(ANDROID_LOG_INFO, "CBPP ", "File Length: %d", (int)fileLength);
-    std::string str(fileContent, fileContent + fileLength);
-    std::istringstream ss(str);
+    // std::string str(fileContent, fileContent + fileLength);
+    // std::istringstream ss(str);
 
-    if((&ss)->peek() == -1) {
-        __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Failed to read stream");
-    }
+    // if((&ss)->peek() == -1) {
+    //     __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Failed to read stream");
+    // }
+    tinyobj_opt::LoadOption option;
+    option.req_num_threads = 4;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, &ss, NULL, true)) { // Make sure to load asset myself...
+    if (!tinyobj_opt::parseObj(&attrib, &shapes, &materials, fileContent, fileLength, option)) { // Make sure to load asset myself...
         throw std::runtime_error(err);
     }
 
@@ -921,30 +920,28 @@ void CardboardRenderer::loadModel() {
 
     std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
-    for (const auto& shape : shapes) {
-        for (const auto& index : shape.mesh.indices) {
-            Vertex vertex = {};
+    for (const auto& index : attrib.indices) {
+        Vertex vertex = {};
 
-            vertex.pos = {
-                attrib.vertices[3 * index.vertex_index + 0],
-                attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
-            };
+        vertex.pos = {
+            attrib.vertices[3 * index.vertex_index + 0],
+            attrib.vertices[3 * index.vertex_index + 1],
+            attrib.vertices[3 * index.vertex_index + 2]
+        };
 
-            vertex.texCoord = {
-                attrib.texcoords[2 * index.texcoord_index + 0],
-                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-            };
+        vertex.texCoord = {
+            attrib.texcoords[2 * index.texcoord_index + 0],
+            1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+        };
 
-            vertex.color = {1.0f, 1.0f, 1.0f};
+        vertex.color = {1.0f, 1.0f, 1.0f};
 
-            if (uniqueVertices.count(vertex) == 0) {
-                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertex);
-            }
-
-            indices.push_back(uniqueVertices[vertex]);
+        if (uniqueVertices.count(vertex) == 0) {
+            uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+            vertices.push_back(vertex);
         }
+
+        indices.push_back(uniqueVertices[vertex]);
     }
 }
 
