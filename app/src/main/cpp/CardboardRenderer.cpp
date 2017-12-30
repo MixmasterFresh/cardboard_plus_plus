@@ -96,7 +96,9 @@ void CardboardRenderer::initVulkan() {
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
+    __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Start loading model...");
     loadModel();
+    __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Model loaded.");
     createVertexBuffer();
     createIndexBuffer();
     createUniformBuffer();
@@ -477,20 +479,11 @@ void CardboardRenderer::createDescriptorSetLayout() {
 }
 
 void CardboardRenderer::createGraphicsPipeline() {
-    // auto vertShaderCode = readFile("shaders/tri.vert.spv"); //TODO: Switch to andoid asset calls
-    // auto fragShaderCode = readFile("shaders/tri.frag.spv"); //TODO: Switch to andoid asset calls
+    auto vertShaderCode = readFile("shaders/tri.vert.spv"); //TODO: Switch to andoid asset calls
+    auto fragShaderCode = readFile("shaders/tri.frag.spv"); //TODO: Switch to andoid asset calls
 
-
-    VkShaderModule vertShaderModule, fragShaderModule;
-    buildShaderFromFile(app, "shaders/tri.vert",
-                        VK_SHADER_STAGE_VERTEX_BIT, device,
-                        &vertShaderModule);
-    buildShaderFromFile(app, "shaders/tri.frag",
-                        VK_SHADER_STAGE_FRAGMENT_BIT, device,
-                        &fragShaderModule);
-
-    // VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    // VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -523,6 +516,8 @@ void CardboardRenderer::createGraphicsPipeline() {
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
+
+    // Add second viewport
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -694,6 +689,7 @@ void CardboardRenderer::createTextureImage() {
     size_t fileLength = AAsset_getLength(file);
     unsigned char* fileContent = new unsigned char[fileLength];
     AAsset_read(file, fileContent, fileLength);
+    AAsset_close(file);
 
     unsigned char* pixels = stbi_load_from_memory(fileContent, fileLength, &texWidth,
                                                   &texHeight, &texChannels, STBI_rgb_alpha);
@@ -714,6 +710,7 @@ void CardboardRenderer::createTextureImage() {
     vkUnmapMemory(device, stagingBufferMemory);
 
     stbi_image_free(pixels);
+    delete[] fileContent;
 
     createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
@@ -891,6 +888,8 @@ void CardboardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32
     endSingleTimeCommands(commandBuffer);
 }
 
+
+// This takes a long time in debug builds, but not in release builds. Release builds see almost no time taken.
 void CardboardRenderer::loadModel() {
     tinyobj_opt::attrib_t attrib;
     std::vector<tinyobj_opt::shape_t> shapes;
@@ -901,16 +900,12 @@ void CardboardRenderer::loadModel() {
     size_t fileLength = AAsset_getLength(file);
     char* fileContent = new char[fileLength];
     AAsset_read(file, fileContent, fileLength);
+    AAsset_close(file);
 
     __android_log_print(ANDROID_LOG_INFO, "CBPP ", "File Length: %d", (int)fileLength);
-    // std::string str(fileContent, fileContent + fileLength);
-    // std::istringstream ss(str);
 
-    // if((&ss)->peek() == -1) {
-    //     __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Failed to read stream");
-    // }
     tinyobj_opt::LoadOption option;
-    option.req_num_threads = 4;
+    option.req_num_threads = 8;
 
     if (!tinyobj_opt::parseObj(&attrib, &shapes, &materials, fileContent, fileLength, option)) { // Make sure to load asset myself...
         throw std::runtime_error(err);
@@ -943,6 +938,8 @@ void CardboardRenderer::loadModel() {
 
         indices.push_back(uniqueVertices[vertex]);
     }
+
+    delete[] fileContent;
 }
 
 void CardboardRenderer::createVertexBuffer() {
@@ -1463,6 +1460,7 @@ std::vector<char> CardboardRenderer::readFile(const std::string& filename) {
     size_t fileLength = AAsset_getLength(file);
     std::vector<char> buffer(fileLength);
     AAsset_read(file, buffer.data(), fileLength);
+    AAsset_close(file);
     return buffer;
 }
 

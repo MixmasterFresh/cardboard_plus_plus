@@ -14,7 +14,9 @@ android {
         externalNativeBuild {
             cmake.arguments '-DANDROID_TOOLCHAIN=clang',
                             '-DANDROID_STL=c++_static',
-                            '-DANDROID_PLATFORM=android-26'
+                            '-DANDROID_PLATFORM=android-26',
+                            '-DCMAKE_VERBOSE_MAKEFILE=1',
+                            '-DCMAKE_BUILD_TYPE=Release'
         }
     }
     externalNativeBuild {
