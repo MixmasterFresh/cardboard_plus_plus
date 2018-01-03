@@ -2,6 +2,7 @@
 #include "VulkanAndroid.hpp"
 #include "CreateShaderModule.h"
 #include <glm/glm/glm.hpp>
+#include <glm/glm/gtx/string_cast.hpp>
 #include <glm/glm/gtc/matrix_transform.hpp>
 #include <glm/glm/gtx/hash.hpp>
 
@@ -109,6 +110,7 @@ void CardboardRenderer::initVulkan() {
 
     __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "Initialized.");
 
+    geometry::initProjections();
     ready = true;
 }
 
@@ -148,7 +150,8 @@ void CardboardRenderer::cleanupSwapChain() {
 
     vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    vkDestroyPipeline(device, graphicsPipelines[0], nullptr);
+    vkDestroyPipeline(device, graphicsPipelines[1], nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -307,8 +310,14 @@ void CardboardRenderer::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    // if (!isDeviceSuitable(physicalDevice)){
+    //     throw std::runtime_error("Device may not be suitable!");
+    // }
+
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    // deviceFeatures.multiViewport = VK_TRUE;
+    // deviceFeatures.geometryShader = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -328,7 +337,8 @@ void CardboardRenderer::createLogicalDevice() {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+    VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
+    if ( result != VK_SUCCESS) {
         throw std::runtime_error("failed to create logical device!");
     }
     vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
@@ -479,17 +489,25 @@ void CardboardRenderer::createDescriptorSetLayout() {
 }
 
 void CardboardRenderer::createGraphicsPipeline() {
-    auto vertShaderCode = readFile("shaders/tri.vert.spv"); //TODO: Switch to andoid asset calls
-    auto fragShaderCode = readFile("shaders/tri.frag.spv"); //TODO: Switch to andoid asset calls
+    auto leftVertShaderCode = readFile("shaders/left_eye.vert.spv");
+    auto rightVertShaderCode = readFile("shaders/right_eye.vert.spv");
+    auto fragShaderCode = readFile("shaders/eye.frag.spv");
 
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    VkShaderModule leftVertShaderModule = createShaderModule(leftVertShaderCode);
+    VkShaderModule rightVertShaderModule = createShaderModule(rightVertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
-    vertShaderStageInfo.pName = "main";
+    VkPipelineShaderStageCreateInfo leftVertShaderStageInfo = {};
+    leftVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    leftVertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    leftVertShaderStageInfo.module = leftVertShaderModule;
+    leftVertShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo rightVertShaderStageInfo = {};
+    rightVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    rightVertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    rightVertShaderStageInfo.module = rightVertShaderModule;
+    rightVertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -497,7 +515,8 @@ void CardboardRenderer::createGraphicsPipeline() {
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.pName = "main";
 
-    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    VkPipelineShaderStageCreateInfo leftShaderStages[] = {leftVertShaderStageInfo, fragShaderStageInfo};
+    VkPipelineShaderStageCreateInfo rightShaderStages[] = {rightVertShaderStageInfo, fragShaderStageInfo};
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -517,18 +536,20 @@ void CardboardRenderer::createGraphicsPipeline() {
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 
-    // Add second viewport
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) swapChainExtent.width;
+    viewport.width = (float) swapChainExtent.width / 2.0f;
     viewport.height = (float) swapChainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset = {0, 0};
-    scissor.extent = swapChainExtent;
+    VkExtent2D bounds = {};
+    bounds.width = (float) swapChainExtent.width / 2.0f;
+    bounds.height = (float) swapChainExtent.height;
+    scissor.extent = bounds;
 
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -584,28 +605,69 @@ void CardboardRenderer::createGraphicsPipeline() {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
-    VkGraphicsPipelineCreateInfo pipelineInfo = {};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = &depthStencil;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = renderPass;
-    pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    VkGraphicsPipelineCreateInfo *pipelineInfo = new VkGraphicsPipelineCreateInfo[2];
+    memset(pipelineInfo, 0, 2*sizeof(VkGraphicsPipelineCreateInfo));
+    pipelineInfo[0].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo[0].stageCount = 2;
+    pipelineInfo[0].pStages = leftShaderStages;
+    pipelineInfo[0].pVertexInputState = &vertexInputInfo;
+    pipelineInfo[0].pInputAssemblyState = &inputAssembly;
+    pipelineInfo[0].pViewportState = &viewportState;
+    pipelineInfo[0].pRasterizationState = &rasterizer;
+    pipelineInfo[0].pMultisampleState = &multisampling;
+    pipelineInfo[0].pDepthStencilState = &depthStencil;
+    pipelineInfo[0].pColorBlendState = &colorBlending;
+    pipelineInfo[0].layout = pipelineLayout;
+    pipelineInfo[0].renderPass = renderPass;
+    pipelineInfo[0].subpass = 0;
+    pipelineInfo[0].basePipelineHandle = VK_NULL_HANDLE;
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+    VkViewport viewport2 = {};
+    viewport2.x = (float) swapChainExtent.width / 2.0f;
+    viewport2.y = 0.0f;
+    viewport2.width = (float) swapChainExtent.width / 2.0f;
+    viewport2.height = (float) swapChainExtent.height;
+    viewport2.minDepth = 0.0f;
+    viewport2.maxDepth = 1.0f;
+
+    VkRect2D scissor2 = {};
+    scissor2.offset = {(int) swapChainExtent.width / 2, 0};
+    VkExtent2D bounds2 = {};
+    bounds2.width = (float) swapChainExtent.width / 2.0f;
+    bounds2.height = (float) swapChainExtent.height;
+    scissor2.extent = bounds;
+
+    VkPipelineViewportStateCreateInfo viewportState2 = {};
+    viewportState2.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState2.viewportCount = 1;
+    viewportState2.pViewports = &viewport2;
+    viewportState2.scissorCount = 1;
+    viewportState2.pScissors = &scissor2;
+
+    pipelineInfo[1].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo[1].stageCount = 2;
+    pipelineInfo[1].pStages = rightShaderStages;
+    pipelineInfo[1].pVertexInputState = &vertexInputInfo;
+    pipelineInfo[1].pInputAssemblyState = &inputAssembly;
+    pipelineInfo[1].pViewportState = &viewportState2;
+    pipelineInfo[1].pRasterizationState = &rasterizer;
+    pipelineInfo[1].pMultisampleState = &multisampling;
+    pipelineInfo[1].pDepthStencilState = &depthStencil;
+    pipelineInfo[1].pColorBlendState = &colorBlending;
+    pipelineInfo[1].layout = pipelineLayout;
+    pipelineInfo[1].renderPass = renderPass;
+    pipelineInfo[1].subpass = 0;
+    pipelineInfo[1].basePipelineHandle = VK_NULL_HANDLE;
+
+    graphicsPipelines = new VkPipeline[2];
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 2, pipelineInfo, nullptr, graphicsPipelines) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(device, leftVertShaderModule, nullptr);
+    vkDestroyShaderModule(device, rightVertShaderModule, nullptr);
 }
 
 void CardboardRenderer::createFramebuffers() {
@@ -945,8 +1007,6 @@ void CardboardRenderer::loadModel() {
 void CardboardRenderer::createVertexBuffer() {
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-    __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Buffer Size: %d", (int)bufferSize);
-
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
@@ -1150,6 +1210,10 @@ void CardboardRenderer::createCommandBuffers() {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
+        VkExtent2D halfExtent = {};
+        halfExtent.width = (float) swapChainExtent.width / 2.0f;
+        halfExtent.height = (float) swapChainExtent.height;
+
         vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
 
         VkRenderPassBeginInfo renderPassInfo = {};
@@ -1157,7 +1221,7 @@ void CardboardRenderer::createCommandBuffers() {
         renderPassInfo.renderPass = renderPass;
         renderPassInfo.framebuffer = swapChainFramebuffers[i];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.renderArea.extent = halfExtent;
 
         std::array<VkClearValue, 2> clearValues = {};
         clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -1168,10 +1232,26 @@ void CardboardRenderer::createCommandBuffers() {
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[0]);
 
             VkBuffer vertexBuffers[] = {vertexBuffer};
             VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffers[i]);
+
+        renderPassInfo.renderArea.offset = {(int) swapChainExtent.width / 2, 0};
+
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
             vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1205,11 +1285,30 @@ void CardboardRenderer::updateUniformBuffer() {
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+    glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
+    glm::vec3 headsetPos = glm::vec3(1.2f, 1.2f, 1.2f);
+    glm::vec3 modelPos = glm::vec3(0.0f, 0.0f, 0.0f);
+
+    glm::vec3 viewNormal = glm::normalize(modelPos - headsetPos);
+    glm::vec3 nudge = glm::cross(up, viewNormal) * 0.1f;
+
     UniformBufferObject ubo = {};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(20.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
+    // Create Left view and right view. Nudge equal distance along cross product vectors(should be nudge)
+    ubo.leftView = glm::lookAt(headsetPos + nudge, modelPos + nudge, up);
+    ubo.rightView = glm::lookAt(headsetPos - nudge, modelPos - nudge, up);
+    // ubo.proj = glm::perspective(glm::radians(45.0f), (swapChainExtent.width / 2.0f) / (float) swapChainExtent.height, 0.1f, 10.0f);
+    // ubo.proj[1][1] *= -1;
+
+    auto temp = glm::perspective(glm::radians(60.0f), (swapChainExtent.width / 2.0f) / (float) swapChainExtent.height, 0.1f, 10.0f);
+    temp[1][1] *= -1;
+    ubo.leftProj = geometry::leftEyeProj;
+    ubo.leftProj[1][1] *= -1;
+    ubo.rightProj = geometry::rightEyeProj;
+    ubo.rightProj[1][1] *= -1;
+
+    // __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Original : %s", glm::to_string(temp).c_str());
+    // __android_log_print(ANDROID_LOG_INFO, "CBPP ", "New      : %s", glm::to_string(ubo.leftProj).c_str());
 
     void* data;
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
@@ -1355,7 +1454,7 @@ bool CardboardRenderer::isDeviceSuitable(VkPhysicalDevice device) {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    return indices.isComplete() && extensionsSupported && supportedFeatures.samplerAnisotropy;
+    return indices.isComplete() && extensionsSupported && supportedFeatures.samplerAnisotropy && supportedFeatures.multiViewport;
 }
 
 bool CardboardRenderer::checkDeviceExtensionSupport(VkPhysicalDevice device) {

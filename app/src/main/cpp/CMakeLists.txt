@@ -17,24 +17,29 @@ set(SHADER_DIR ${SRC_DIR}/../assets/shaders)
 set(GLSLANG_VALIDATOR C:/VulkanSDK/1.0.57.0/Bin32/glslangvalidator.exe)
 set(SFILE tri)
 
-add_custom_command(OUTPUT ${SHADER_DIR}/${SFILE}.frag.spv
-	COMMAND ${GLSLANG_VALIDATOR} -s -V ${SHADER_DIR}/${SFILE}.frag -o ${SHADER_DIR}/${SFILE}.frag.spv
-	DEPENDS ${SHADER_DIR}/${SFILE}.frag ${GLSLANG_VALIDATOR}
-)
+file(GLOB_RECURSE GLSL_SOURCE_FILES
+    "${SHADER_DIR}/*.frag"
+    "${SHADER_DIR}/*.vert"
+    )
 
-add_custom_command(OUTPUT ${SHADER_DIR}/${SFILE}.vert.spv
-    COMMAND ${GLSLANG_VALIDATOR} -s -V ${SHADER_DIR}/${SFILE}.vert -o ${SHADER_DIR}/${SFILE}.vert.spv
-    DEPENDS ${SHADER_DIR}/${SFILE}.vert ${GLSLANG_VALIDATOR}
-)
+foreach(GLSL ${GLSL_SOURCE_FILES})
+  get_filename_component(FILE_NAME ${GLSL} NAME)
+  set(SPIRV "${SHADER_DIR}/${FILE_NAME}.spv")
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${GLSLANG_VALIDATOR} -V ${GLSL} -o ${SPIRV}
+    DEPENDS ${GLSL})
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(GLSL)
 
 
 add_library(vktuts SHARED
    ${SRC_DIR}/VulkanAndroid.cpp
+   ${SRC_DIR}/Geometry.cpp
    ${SRC_DIR}/CreateShaderModule.cpp
    ${SRC_DIR}/CardboardRenderer.cpp
    ${SRC_DIR}/AndroidMain.cpp
-   ${SHADER_DIR}/tri.vert.spv
-   ${SHADER_DIR}/tri.frag.spv
+   ${SPIRV_BINARY_FILES}
    )
 
 target_include_directories(vktuts PRIVATE

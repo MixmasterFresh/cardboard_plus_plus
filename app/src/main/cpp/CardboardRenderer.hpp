@@ -2,6 +2,7 @@
 #define CBPP_CARDBOARD_RENDERER_HPP
 
 #include "VulkanAndroid.hpp"
+#include "Geometry.hpp"
 #include <android_native_app_glue.h>
 
 #define GLM_FORCE_RADIANS
@@ -86,8 +87,10 @@ namespace std {
 
 struct UniformBufferObject {
     glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
+    glm::mat4 leftView;
+    glm::mat4 rightView;
+    glm::mat4 leftProj;
+    glm::mat4 rightProj;
 };
 
 
@@ -128,7 +131,7 @@ private:
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkPipeline *graphicsPipelines;
 
     VkCommandPool commandPool;
 

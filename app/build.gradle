@@ -4,7 +4,7 @@ android {
     compileSdkVersion  26
 
     defaultConfig {
-        applicationId "com.cardboard.cbpp"
+        applicationId "com.cbpp.cardboard"
         minSdkVersion 26
         targetSdkVersion 26
         versionCode 1
@@ -15,8 +15,8 @@ android {
             cmake.arguments '-DANDROID_TOOLCHAIN=clang',
                             '-DANDROID_STL=c++_static',
                             '-DANDROID_PLATFORM=android-26',
-                            '-DCMAKE_VERBOSE_MAKEFILE=1',
-                            '-DCMAKE_BUILD_TYPE=Release'
+                            '-DCMAKE_VERBOSE_MAKEFILE=1'//,
+//                            '-DCMAKE_BUILD_TYPE=Release'
         }
     }
     externalNativeBuild {
