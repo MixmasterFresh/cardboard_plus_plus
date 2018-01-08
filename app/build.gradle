@@ -1,8 +1,7 @@
 apply plugin: 'com.android.application'
-
 android {
-    compileSdkVersion  26
-
+    
+    compileSdkVersion 26
     defaultConfig {
         applicationId "com.cbpp.cardboard"
         minSdkVersion 26
@@ -13,10 +12,10 @@ android {
         ndk.abiFilters 'armeabi-v7a', 'arm64-v8a' //, 'x86', 'x86_64'
         externalNativeBuild {
             cmake.arguments '-DANDROID_TOOLCHAIN=clang',
-                            '-DANDROID_STL=c++_static',
-                            '-DANDROID_PLATFORM=android-26',
-                            '-DCMAKE_VERBOSE_MAKEFILE=1'//,
-//                            '-DCMAKE_BUILD_TYPE=Release'
+                    '-DANDROID_STL=c++_static',
+                    '-DANDROID_PLATFORM=android-26',
+                    '-DCMAKE_VERBOSE_MAKEFILE=1',
+                    '-DCMAKE_BUILD_TYPE=Release'
         }
     }
     externalNativeBuild {
@@ -26,20 +25,22 @@ android {
         release {
             minifyEnabled = false
             proguardFiles.add(file('proguard-rules.pro'))
+            signingConfig signingConfigs.ECE_KEY
         }
     }
 }
-
 // ******** Generate cdep module file for shaderc *******
 // this is same as running on command line of: ./cdep [cdep.bat]
-def CDEP_CMD='./cdep'
+def CDEP_CMD = './cdep'
 if (System.properties['os.name'].toLowerCase().contains('windows')) {
-    CDEP_CMD='cdep.bat'
+    CDEP_CMD = 'cdep.bat'
 }
-if(!file("../.cdep").exists()) {
+if (!file("../.cdep").exists()) {
     exec {
         workingDir("..")
         executable "${CDEP_CMD}"
         args = []
     }
+}
+dependencies {
 }

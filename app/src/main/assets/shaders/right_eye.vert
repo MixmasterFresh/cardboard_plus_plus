@@ -30,7 +30,7 @@ void undistort(inout vec4 position){
 }
 
 void main() {
-    vec4 pos = ubo.rightView * ubo.model * vec4(inPosition, 1.0);
+    vec4 pos = ubo.rightView * vec4(inPosition, 1.0);
     undistort(pos);
     gl_Position = ubo.rightProj * pos;
     // gl_Position = ubo.rightProj * ubo.leftView * ubo.model * vec4(inPosition, 1.0);

@@ -77,6 +77,13 @@ struct Vertex {
     }
 };
 
+struct ThreadData {
+    VkCommandPool commandPool;
+    // One command buffer per render object
+    std::vector<VkCommandBuffer> commandBuffer;
+};
+
+
 namespace std {
     template<> struct hash<Vertex> {
         size_t operator()(Vertex const& vertex) const {
@@ -162,6 +169,9 @@ private:
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
 
+    std::vector<ThreadData> threadData;
+    int numThreads = 4;
+
 
     void cleanupSwapChain();
     void recreateSwapChain();
@@ -176,6 +186,7 @@ private:
     void createDescriptorSetLayout();
     void createGraphicsPipeline();
     void createFramebuffers();
+    void initializeThreads();
     void createCommandPool();
     void createDepthResources();
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);

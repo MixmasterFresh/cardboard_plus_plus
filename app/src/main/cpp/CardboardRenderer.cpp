@@ -117,19 +117,32 @@ void CardboardRenderer::initVulkan() {
 void CardboardRenderer::mainLoop() {
     int events;
     android_poll_source* source;
+    int frames = 0;
+    auto startTime = std::chrono::high_resolution_clock::now();
+
 
     // Main loop
     do {
-      if (ALooper_pollAll(ready ? 1 : 0, nullptr,
-                          &events, (void**)&source) >= 0) {
-        if (source != NULL) source->process(app, source);
-      }
+        if (ALooper_pollAll(ready ? 1 : 0, nullptr,
+                            &events, (void**)&source) >= 0) {
+            if (source != NULL) source->process(app, source);
+        }
 
-      // render if vulkan is ready
-      if (ready) {
-        updateUniformBuffer();
-        drawFrame();
-      }
+        // render if vulkan is ready
+        for(int i = 0; i < 10; i++){
+            if (ready) {
+                updateUniformBuffer();
+                drawFrame();
+                frames++;
+                if(frames == 100){
+                    auto currentTime = std::chrono::high_resolution_clock::now();
+                    float elapsedTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+                    __android_log_print(ANDROID_LOG_ERROR, "CBPP ", "FPS: %f", 100.0f / elapsedTime);
+                    frames = 0;
+                    startTime = std::chrono::high_resolution_clock::now();
+                }
+            }
+        }
     } while (app->destroyRequested == 0);
 
 
@@ -146,6 +159,12 @@ void CardboardRenderer::cleanupSwapChain() {
 
     for (auto framebuffer : swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+
+    for (auto& thread : threadData)
+    {
+        vkFreeCommandBuffers(device, thread.commandPool, thread.commandBuffer.size(), thread.commandBuffer.data());
+        vkDestroyCommandPool(device, thread.commandPool, nullptr);
     }
 
     vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
@@ -694,6 +713,33 @@ void CardboardRenderer::createFramebuffers() {
     }
 }
 
+void CardboardRenderer::initializeThreads() {
+    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+    threadData.resize(numThreads);
+    for (uint32_t i = 0; i < numThreads; i++) {
+        ThreadData *thread = &threadData[i];
+
+        // Create one command pool for each thread
+        VkCommandPoolCreateInfo cmdPoolInfo = {};
+        cmdPoolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &thread->commandPool);
+
+        // One secondary command buffer per object that is updated by this thread
+        thread->commandBuffer.resize(1);
+        // Generate secondary command buffers for each thread
+
+        VkCommandBufferAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = thread->commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+        allocInfo.commandBufferCount = (uint32_t) thread->commandBuffer.size();
+
+        vkAllocateCommandBuffers(device, &allocInfo, thread->commandBuffer.data());
+    }
+}
+
 void CardboardRenderer::createCommandPool() {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
@@ -993,7 +1039,7 @@ void CardboardRenderer::loadModel() {
 
         vertex.color = {1.0f, 1.0f, 1.0f};
 
-        if (uniqueVertices.count(vertex) == 0) {
+        if(true){//(uniqueVertices.count(vertex) == 0) {
             uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
             vertices.push_back(vertex);
         }
@@ -1230,17 +1276,22 @@ void CardboardRenderer::createCommandBuffers() {
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
+
+
+        VkBuffer vertexBuffers[] = {vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+
+
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[0]);
-
-            VkBuffer vertexBuffers[] = {vertexBuffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-
-            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -1251,12 +1302,6 @@ void CardboardRenderer::createCommandBuffers() {
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
-
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-
-            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -1295,17 +1340,15 @@ void CardboardRenderer::updateUniformBuffer() {
     UniformBufferObject ubo = {};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(20.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     // Create Left view and right view. Nudge equal distance along cross product vectors(should be nudge)
-    ubo.leftView = glm::lookAt(headsetPos + nudge, modelPos + nudge, up);
-    ubo.rightView = glm::lookAt(headsetPos - nudge, modelPos - nudge, up);
+    ubo.leftView = glm::lookAt(headsetPos + nudge, modelPos + nudge, up) * ubo.model;
+    ubo.rightView = glm::lookAt(headsetPos - nudge, modelPos - nudge, up) * ubo.model;
     // ubo.proj = glm::perspective(glm::radians(45.0f), (swapChainExtent.width / 2.0f) / (float) swapChainExtent.height, 0.1f, 10.0f);
     // ubo.proj[1][1] *= -1;
 
     auto temp = glm::perspective(glm::radians(60.0f), (swapChainExtent.width / 2.0f) / (float) swapChainExtent.height, 0.1f, 10.0f);
     temp[1][1] *= -1;
     ubo.leftProj = geometry::leftEyeProj;
-    ubo.leftProj[1][1] *= -1;
     ubo.rightProj = geometry::rightEyeProj;
-    ubo.rightProj[1][1] *= -1;
 
     // __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Original : %s", glm::to_string(temp).c_str());
     // __android_log_print(ANDROID_LOG_INFO, "CBPP ", "New      : %s", glm::to_string(ubo.leftProj).c_str());
