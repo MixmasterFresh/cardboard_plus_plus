@@ -23,7 +23,7 @@ namespace geometry {
   void initProjections(){
     float *rect = new float[4];
     GetLeftEyeNoLensTanAngles(rect);
-    leftEyeProj = MakeProjection(rect[0], rect[1], rect[2], rect[3], 10.0f, 1000.0f);
+    leftEyeProj = MakeProjection(rect[0], rect[1], rect[2], rect[3], 1.0f, 100.0f);
     rightEyeProj = glm::transpose(glm::transpose(leftEyeProj)); // Roundabout copy
     rightEyeProj[0][2] *= -1.0f;
     leftEyeProj[1][1] *= -1.0f;

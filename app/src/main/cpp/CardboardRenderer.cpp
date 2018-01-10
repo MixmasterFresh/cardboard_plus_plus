@@ -161,12 +161,6 @@ void CardboardRenderer::cleanupSwapChain() {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
     }
 
-    for (auto& thread : threadData)
-    {
-        vkFreeCommandBuffers(device, thread.commandPool, thread.commandBuffer.size(), thread.commandBuffer.data());
-        vkDestroyCommandPool(device, thread.commandPool, nullptr);
-    }
-
     vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
     vkDestroyPipeline(device, graphicsPipelines[0], nullptr);
@@ -240,7 +234,7 @@ void CardboardRenderer::createInstance() {
 
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Hello Triangle";
+    appInfo.pApplicationName = "Cardboard++";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -1027,9 +1021,9 @@ void CardboardRenderer::loadModel() {
         Vertex vertex = {};
 
         vertex.pos = {
-            attrib.vertices[3 * index.vertex_index + 0],
-            attrib.vertices[3 * index.vertex_index + 1],
-            attrib.vertices[3 * index.vertex_index + 2]
+            attrib.vertices[3 * index.vertex_index + 0] * 10,
+            attrib.vertices[3 * index.vertex_index + 1] * 10,
+            attrib.vertices[3 * index.vertex_index + 2] * 10
         };
 
         vertex.texCoord = {
@@ -1331,7 +1325,7 @@ void CardboardRenderer::updateUniformBuffer() {
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
-    glm::vec3 headsetPos = glm::vec3(1.2f, 1.2f, 1.2f);
+    glm::vec3 headsetPos = glm::vec3(0.0f, 12.0f, 8.0f);
     glm::vec3 modelPos = glm::vec3(0.0f, 0.0f, 0.0f);
 
     glm::vec3 viewNormal = glm::normalize(modelPos - headsetPos);

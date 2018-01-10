@@ -23,7 +23,7 @@ out gl_PerVertex {
 
 void undistort(inout vec4 position){
     float r2 = dot(position.xy, position.xy) / (position.z * position.z); // currently missing clamp call
-    float disp = 1.0 + (-0.5256 + (0.4278 * r2)) * r2;
+    float disp = 1 + (-0.3 + (0.1 * r2)) * r2;
     // float r = (position.x + position.y) / (position.z); // currently missing clamp call
     // float disp = 1 + ((((-0.5256 * r + 0.4278) * r - 00.2525) * r + 0.08995) * r - 0.01705) * r;
     position.xy = position.xy * disp;

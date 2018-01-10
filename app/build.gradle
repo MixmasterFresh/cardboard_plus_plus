@@ -25,7 +25,6 @@ android {
         release {
             minifyEnabled = false
             proguardFiles.add(file('proguard-rules.pro'))
-            signingConfig signingConfigs.ECE_KEY
         }
     }
 }

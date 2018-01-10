@@ -14,7 +14,7 @@ get_filename_component(REPO_ROOT_DIR
 set(COMMON_DIR ${REPO_ROOT_DIR}/common)
 set(THIRD_PARTY_DIR ${REPO_ROOT_DIR}/third_party)
 set(SHADER_DIR ${SRC_DIR}/../assets/shaders)
-set(GLSLANG_VALIDATOR C:/VulkanSDK/1.0.57.0/Bin32/glslangvalidator.exe)
+set(GLSLANG_VALIDATOR C:/VulkanSDK/1.0.65.1/Bin32/glslangvalidator.exe)
 set(SFILE tri)
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES

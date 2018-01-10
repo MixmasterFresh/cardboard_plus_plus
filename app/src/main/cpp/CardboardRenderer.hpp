@@ -170,7 +170,7 @@ private:
     VkSemaphore renderFinishedSemaphore;
 
     std::vector<ThreadData> threadData;
-    int numThreads = 4;
+    int numThreads = 2;
 
 
     void cleanupSwapChain();
