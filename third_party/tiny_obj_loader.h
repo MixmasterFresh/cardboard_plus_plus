@@ -348,6 +348,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
 }  // namespace tinyobj
 
+extern std::istream fileLoadCallback(char*);
+
 #endif  // TINY_OBJ_LOADER_H_
 
 #ifdef TINYOBJLOADER_IMPLEMENTATION
@@ -1444,7 +1446,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
     filepath = matId;
   }
 
-  std::ifstream matIStream(filepath.c_str());
+  std::ifstream matIStream = fileLoadCallback(filepath.c_str());
   if (!matIStream) {
     std::stringstream ss;
     ss << "WARN: Material file [ " << filepath << " ] not found." << std::endl;

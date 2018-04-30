@@ -129,7 +129,7 @@ void CardboardRenderer::mainLoop() {
         }
 
         // render if vulkan is ready
-        for(int i = 0; i < 10; i++){
+        for(int i = 0; i < 50; i++){
             if (ready) {
                 updateUniformBuffer();
                 drawFrame();
@@ -997,6 +997,8 @@ void CardboardRenderer::loadModel() {
     std::vector<tinyobj_opt::shape_t> shapes;
     std::vector<tinyobj_opt::material_t> materials;
     std::string err;
+
+    __android_log_print(ANDROID_LOG_INFO, "CBPP ", "Reading Model File.");
 
     AAsset* file = AAssetManager_open(app->activity->assetManager, MODEL_PATH.c_str(), AASSET_MODE_BUFFER);
     size_t fileLength = AAsset_getLength(file);
